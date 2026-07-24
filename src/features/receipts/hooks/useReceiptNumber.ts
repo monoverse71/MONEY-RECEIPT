@@ -1,10 +1,11 @@
 import { useCallback, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { reserveNextReceiptNumber } from "@/lib/dataService";
 
 /**
  * Reserves the next receipt number for a project (e.g. REC-000001).
- * Numbers are assigned atomically server-side (see next_receipt_number in
- * schema.sql) so two staff members saving at the same time never collide.
+ * Routed through the data service, so it transparently uses the real
+ * Supabase RPC (atomic, server-side) when configured, or the local mock
+ * counter in demo mode. See src/lib/dataService.ts.
  *
  * NOTE: Calling this reserves/increments the counter immediately. In phase 2
  * we may want to defer the actual reservation until "Save" is pressed (not
@@ -18,11 +19,7 @@ export function useReceiptNumber() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase.rpc("next_receipt_number", {
-        p_project_id: projectId,
-      });
-      if (error) throw error;
-      return data as string;
+      return await reserveNextReceiptNumber(projectId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not generate receipt number");
       return null;

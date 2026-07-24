@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { listProjects } from "@/lib/dataService";
 import type { Project } from "../types";
 
 export function useProjects() {
@@ -12,19 +12,14 @@ export function useProjects() {
 
     async function load() {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .order("name", { ascending: true });
-
-      if (cancelled) return;
-
-      if (error) {
-        setError(error.message);
-      } else {
-        setProjects(data ?? []);
+      try {
+        const data = await listProjects();
+        if (!cancelled) setProjects(data);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load projects");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setLoading(false);
     }
 
     load();

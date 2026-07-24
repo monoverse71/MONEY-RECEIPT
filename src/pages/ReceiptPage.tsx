@@ -12,7 +12,8 @@ import { useReceiptNumber } from "@/features/receipts/hooks/useReceiptNumber";
 import { todayISO } from "@/lib/utils";
 import type { Customer } from "@/features/customers/types";
 import type { ReceiptFormState } from "@/features/receipts/types";
-import { supabase } from "@/lib/supabase";
+import { saveReceipt, isSupabaseConfigured } from "@/lib/dataService";
+import { DemoModeBanner } from "@/components/DemoModeBanner";
 
 const EMPTY_FORM: ReceiptFormState = {
   receiptNumber: "",
@@ -121,34 +122,26 @@ export default function ReceiptPage() {
         receiptNumber = next;
       }
 
-      // 3. Insert the receipt header.
-      const { data: receipt, error: receiptErr } = await supabase
-        .from("receipts")
-        .insert({
-          project_id: projectId,
-          customer_id: customerId,
-          receipt_number: receiptNumber,
-          receipt_date: form.receiptDate,
-          status,
-          note: form.note,
-          prepared_by: form.preparedBy || null,
-          authorized_by: form.authorizedBy || null,
-        })
-        .select("*")
-        .single();
-      if (receiptErr) throw receiptErr;
-
-      // 4. Insert the payment breakdown rows.
-      const rows = form.items.map((it) => ({
-        receipt_id: receipt.id,
-        sl: it.sl,
-        description: it.description,
-        payment_method: it.paymentMethod,
-        total_unit_price: it.totalUnitPrice,
-        amount_paid: it.amountPaid,
-      }));
-      const { error: itemsErr } = await supabase.from("receipt_items").insert(rows);
-      if (itemsErr) throw itemsErr;
+      // 3. Save the receipt header + payment breakdown rows via the data
+      //    service (transparently uses Supabase when configured, or the
+      //    local in-memory demo store otherwise).
+      await saveReceipt({
+        projectId,
+        customerId,
+        receiptNumber,
+        receiptDate: form.receiptDate,
+        status,
+        note: form.note,
+        preparedBy: form.preparedBy,
+        authorizedBy: form.authorizedBy,
+        items: form.items.map((it) => ({
+          sl: it.sl,
+          description: it.description,
+          paymentMethod: it.paymentMethod,
+          totalUnitPrice: it.totalUnitPrice,
+          amountPaid: it.amountPaid,
+        })),
+      });
 
       setForm((prev) => ({ ...prev, receiptNumber, customerId, customerCode, status }));
       setSaveMessage(`Receipt ${receiptNumber} saved as ${status}.`);
@@ -172,12 +165,15 @@ export default function ReceiptPage() {
   return (
     <div className="min-h-screen bg-secondary/40 pb-16">
       <header className="border-b bg-white px-6 py-3 shadow-sm">
-        <ProjectSelector
-          projects={projects}
-          loading={projectsLoading}
-          selectedProjectId={projectId}
-          onChange={handleProjectChange}
-        />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <ProjectSelector
+            projects={projects}
+            loading={projectsLoading}
+            selectedProjectId={projectId}
+            onChange={handleProjectChange}
+          />
+          {!isSupabaseConfigured && <DemoModeBanner />}
+        </div>
       </header>
 
       <main className="mx-auto mt-6 grid max-w-7xl grid-cols-1 gap-6 px-6 lg:grid-cols-2">
