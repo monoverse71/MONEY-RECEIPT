@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 import { mockDataStore } from "@/lib/mockData";
 import type { Project } from "@/features/projects/types";
 import type { Customer, CustomerSearchField } from "@/features/customers/types";
@@ -21,6 +21,7 @@ export async function listProjects(): Promise<Project[]> {
   if (!isSupabaseConfigured) {
     return mockDataStore.listProjects();
   }
+  const supabase = await getSupabaseClient();
   const { data, error } = await supabase.from("projects").select("*").order("name", { ascending: true });
   if (error) throw error;
   return data ?? [];
@@ -36,6 +37,8 @@ export async function searchCustomers(
   if (!isSupabaseConfigured) {
     return mockDataStore.searchCustomers(projectId, field, query);
   }
+
+  const supabase = await getSupabaseClient();
 
   if (field === "receipt_number") {
     const { data: receipt, error: receiptErr } = await supabase
@@ -82,6 +85,7 @@ export async function createCustomer(
     return mockDataStore.createCustomer(projectId, input, code);
   }
 
+  const supabase = await getSupabaseClient();
   const { data: code, error: codeErr } = await supabase.rpc("next_customer_code", {
     p_project_id: projectId,
   });
@@ -108,6 +112,7 @@ export async function reserveNextReceiptNumber(projectId: string): Promise<strin
   if (!isSupabaseConfigured) {
     return mockDataStore.nextReceiptNumber(projectId);
   }
+  const supabase = await getSupabaseClient();
   const { data, error } = await supabase.rpc("next_receipt_number", {
     p_project_id: projectId,
   });
@@ -158,6 +163,7 @@ export async function saveReceipt(input: SaveReceiptInput): Promise<void> {
     return;
   }
 
+  const supabase = await getSupabaseClient();
   const { data: receipt, error: receiptErr } = await supabase
     .from("receipts")
     .insert({
